@@ -14,6 +14,9 @@
 #include "include/desktop_multi_window/desktop_multi_window_plugin.h"
 #include "multi_window_plugin_internal.h"
 
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
+
 namespace {
 
 WindowCreatedCallback _g_window_created_callback = nullptr;
@@ -89,11 +92,26 @@ FlutterWindow::FlutterWindow(
   scale_factor_ = dpi / 96.0;
 
   HWND window_handle = CreateWindow(
-      kFlutterWindowClassName, L"", (WS_POPUP | WS_SIZEBOX),
+      kFlutterWindowClassName, L"", WS_OVERLAPPEDWINDOW,
       Scale(target_point.x, scale_factor_), Scale(target_point.y, scale_factor_),
       Scale(1280, scale_factor_), Scale(720, scale_factor_),
       nullptr, nullptr, GetModuleHandle(nullptr), this);
 
+  // 2) ask DWM to render the title‐bar & frame in dark mode:
+  BOOL useDark = TRUE;
+  // Windows 10 1903+:
+  const DWORD DWMWA_USE_IMMERSIVE_DARK_MODE    = 20;
+  // older Win10 1809 builds:
+  const DWORD DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19;
+  DwmSetWindowAttribute(window_handle,
+                        DWMWA_USE_IMMERSIVE_DARK_MODE,
+                        &useDark, sizeof(useDark));
+  // fallback on older insider builds:
+  DwmSetWindowAttribute(window_handle,
+                        DWMWA_USE_IMMERSIVE_DARK_MODE_OLD,
+                        &useDark, sizeof(useDark));
+
+  // …then your existing setup:
   RECT frame;
   GetClientRect(window_handle, &frame);
   flutter::DartProject project(L"data");
@@ -119,7 +137,7 @@ FlutterWindow::FlutterWindow(
 
   // hide the window when created.
   ShowWindow(window_handle, SW_HIDE);
-
+  
 }
 
 // static
